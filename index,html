@@ -1,0 +1,236 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gridapp</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #fff;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      font-weight: 700;
+      color: #ffd700;
+      text-shadow: 0 0 10px #000;
+    }
+    .game-container {
+      display: flex;
+      gap: 20px;
+      max-width: 1400px;
+      margin: auto;
+    }
+    .grid-side, .panel-side {
+      flex: 1;
+      background: rgba(255,255,255,0.05);
+      border-radius: 15px;
+      padding: 15px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
+    /* GRID FIX */
+    .grid-wrapper {
+      display: grid;
+      grid-template-columns: repeat(11, 1fr);
+      grid-template-rows: repeat(11, 1fr);
+      gap: 2px;
+      background: rgba(255,255,255,0.08);
+      padding: 10px;
+      border-radius: 12px;
+    }
+    .cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85em;
+      border-radius: 6px;
+    }
+    .header-cell {
+      background: rgba(255,255,255,0.15);
+      font-weight: bold;
+      color: #ffd700;
+    }
+    .square {
+      background: #1e3c72;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+    .square:hover {
+      background: #2a5298;
+      transform: scale(1.05);
+      box-shadow: 0 0 12px rgba(255,215,0,0.7);
+    }
+    .square.selected {
+      background: #ffd700;
+      color: #000;
+    }
+    .square.winner {
+      animation: flashWinner 1s ease infinite alternate;
+    }
+    @keyframes flashWinner {
+      from { background: #28a745; color: #fff; box-shadow: 0 0 20px #28a745; }
+      to { background: #34d058; color: #000; box-shadow: 0 0 30px #34d058; }
+    }
+    .side-panel h3 {
+      color: #ffd700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-custom {
+      background: #ffd700;
+      color: #000;
+      font-weight: bold;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+    .btn-custom:hover {
+      background: #ffea70;
+      transform: scale(1.05);
+    }
+    .result-entry {
+      background: rgba(255,255,255,0.1);
+      padding: 8px;
+      border-radius: 8px;
+      margin-top: 6px;
+      animation: fadeIn 0.5s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px);}
+      to { opacity: 1; transform: translateY(0);}
+    }
+  </style>
+</head>
+<body>
+  <h1><i class="bi bi-grid-3x3-gap-fill"></i> 100 Squares Betting Game</h1>
+  <div class="game-container">
+    <!-- Grid Section -->
+    <div class="grid-side">
+      <div class="grid-wrapper" id="grid"></div>
+    </div>
+
+    <!-- Panel Section -->
+    <div class="panel-side side-panel">
+      <h3><i class="bi bi-gear-fill"></i> Setup</h3>
+      <input id="teamAName" class="form-control mb-2" placeholder="Enter Team A Name" />
+      <input id="teamBName" class="form-control mb-2" placeholder="Enter Team B Name" />
+      <select id="boardValue" class="form-select mb-3">
+        <option value="1">$1 Board</option>
+        <option value="5">$5 Board</option>
+        <option value="10">$10 Board</option>
+        <option value="20">$20 Board</option>
+        <option value="25">$25 Board</option>
+      </select>
+      <button class="btn btn-custom w-100 mb-3" onclick="assignNumbers()">
+        <i class="bi bi-dice-5"></i> Assign Numbers
+      </button>
+
+      <h3><i class="bi bi-trophy-fill"></i> Game Simulation</h3>
+      <button class="btn btn-success w-100 mb-2" onclick="simulateQuarter()">
+        <i class="bi bi-play-fill"></i> Simulate Next Quarter
+      </button>
+      <div id="results" style="margin-top:10px; font-size:0.9em;"></div>
+    </div>
+  </div>
+
+  <script>
+    const grid = document.getElementById("grid");
+    const results = document.getElementById("results");
+    let selectedSquares = {};
+    let quarter = 0;
+    let rowDigits = [];
+    let colDigits = [];
+
+    // Build 11x11 grid
+    function buildGrid() {
+      grid.innerHTML = "";
+      for (let r = 0; r < 11; r++) {
+        for (let c = 0; c < 11; c++) {
+          const cell = document.createElement("div");
+          cell.classList.add("cell");
+
+          if (r === 0 && c === 0) {
+            cell.textContent = ""; // top-left blank
+          } else if (r === 0 && c > 0) {
+            cell.classList.add("header-cell");
+            cell.id = "col-" + (c - 1);
+            cell.textContent = "-";
+          } else if (c === 0 && r > 0) {
+            cell.classList.add("header-cell");
+            cell.id = "row-" + (r - 1);
+            cell.textContent = "-";
+          } else {
+            const index = (r - 1) * 10 + (c - 1);
+            cell.classList.add("square");
+            cell.textContent = index + 1;
+            cell.addEventListener("click", () => {
+              if (!cell.classList.contains("selected")) {
+                cell.classList.add("selected");
+                selectedSquares[index] = "Player"; // placeholder
+              } else {
+                cell.classList.remove("selected");
+                delete selectedSquares[index];
+              }
+            });
+          }
+
+          grid.appendChild(cell);
+        }
+      }
+    }
+
+    buildGrid();
+
+    // Shuffle numbers 0–9
+    function shuffle() {
+      let nums = [...Array(10).keys()];
+      for (let i = nums.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [nums[i], nums[j]] = [nums[j], nums[i]];
+      }
+      return nums;
+    }
+
+    function assignNumbers() {
+      rowDigits = shuffle();
+      colDigits = shuffle();
+      for (let i = 0; i < 10; i++) {
+        document.getElementById("row-" + i).textContent = rowDigits[i];
+        document.getElementById("col-" + i).textContent = colDigits[i];
+      }
+      results.innerHTML = `<div class="result-entry"><b>Numbers Assigned!</b><br/>Team A: ${rowDigits.join(", ")}<br/>Team B: ${colDigits.join(", ")}</div>`;
+    }
+
+    function simulateQuarter() {
+      if (rowDigits.length === 0 || colDigits.length === 0) {
+        alert("Assign numbers first!");
+        return;
+      }
+      quarter++;
+      let scoreA = Math.floor(Math.random() * 40);
+      let scoreB = Math.floor(Math.random() * 40);
+      let lastA = scoreA % 10;
+      let lastB = scoreB % 10;
+
+      let rowIndex = rowDigits.indexOf(lastA);
+      let colIndex = colDigits.indexOf(lastB);
+      let winningIndex = rowIndex * 10 + colIndex;
+
+      document.querySelectorAll(".square").forEach(sq => sq.classList.remove("winner"));
+      let winningSquare = document.querySelectorAll(".square")[winningIndex];
+      winningSquare.classList.add("winner");
+
+      let teamAName = document.getElementById("teamAName").value || "Team A";
+      let teamBName = document.getElementById("teamBName").value || "Team B";
+
+      results.innerHTML += `<div class="result-entry">Q${quarter}: ${teamAName} (${scoreA}) - ${teamBName} (${scoreB}) → Winning Square: <b>${winningSquare.textContent}</b></div>`;
+    }
+  </script>
+</body>
+</html>
